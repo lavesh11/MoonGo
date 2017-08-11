@@ -112,10 +112,74 @@ def apply_move(board_state, move, side):
     board_state[move_x][move_y] = side
     return board_state
 
+def possible(state):
+    line = collections.defaultdict(lambda: 0)
+    line.clear()
+    for i in range(BOARD_SIZE):
+        ct = {0: 0, 1: 0, -1: 0}
+        for j in range(LINE_SIZE - 1):
+            ct[state[i][j]] += 1
+        for j in range(LINE_SIZE - 1, BOARD_SIZE):
+            ct[state[i][j]] += 1
+            line[(ct[1],ct[-1],ct[0])] += 1
+            ct[state[i][j - LINE_SIZE + 1]] -= 1
 
-def play_game(plus_player_func, minus_player_func):
+    for j in range(BOARD_SIZE):
+        ct = {0: 0, 1: 0, -1: 0}
+        for i in range(LINE_SIZE - 1):
+            ct[state[i][j]] += 1
+        for i in range(LINE_SIZE - 1, BOARD_SIZE):
+            ct[state[i][j]] += 1
+            line[(ct[1],ct[-1],ct[0])] += 1
+            ct[state[i-LINE_SIZE+1][j]] -= 1
 
-    board_state = emptyboard()
+    for i in range(BOARD_SIZE - LINE_SIZE + 1):
+        ct = {0: 0, 1: 0, -1: 0}
+        for k in range(LINE_SIZE - 1):
+            ct[state[i + k][k]] += 1
+        inc = LINE_SIZE - 1
+        while inside(i + inc, inc):
+            ct[state[i + inc][inc]] += 1
+            line[(ct[1],ct[-1],ct[0])] += 1
+            ct[state[i + inc - LINE_SIZE + 1][inc - LINE_SIZE + 1]] -= 1
+            inc += 1
+        ct = {0: 0, 1: 0, -1: 0}
+        if i != 0:
+            for k in range(LINE_SIZE - 1):
+                ct[state[k][i + k]] += 1
+            inc = LINE_SIZE - 1
+            while inside(inc, i + inc):
+                ct[state[inc][i + inc]] += 1
+                line[(ct[1],ct[-1],ct[0])] += 1
+                ct[state[inc - LINE_SIZE + 1][i + inc - LINE_SIZE + 1]] -= 1
+                inc += 1
+
+    for i in range(LINE_SIZE - 1, BOARD_SIZE):
+        ct = {0: 0, 1: 0, -1: 0}
+        for k in range(LINE_SIZE - 1):
+            ct[state[k][i - k]] += 1
+        inc = LINE_SIZE - 1
+        while inside(inc, i - inc):
+            ct[state[inc][i - inc]] += 1
+            line[(ct[1],ct[-1],ct[0])] += 1
+            ct[state[inc - LINE_SIZE + 1][i - inc + LINE_SIZE - 1]] -= 1
+            inc += 1
+        ct = {0: 0, 1: 0, -1: 0}
+        if i != BOARD_SIZE - 1:
+            for k in range(LINE_SIZE - 1):
+                ct[state[BOARD_SIZE - i - 1 + k][BOARD_SIZE - 1 - k]] += 1
+            inc = LINE_SIZE - 1
+            while inside(BOARD_SIZE - i - 1 + inc, BOARD_SIZE - 1 - inc):
+                ct[state[BOARD_SIZE - i - 1 + inc][BOARD_SIZE - 1 - inc]] += 1
+                line[(ct[1],ct[-1],ct[0])] += 1
+                ct[state[BOARD_SIZE - i - 1 + inc - LINE_SIZE + 1][BOARD_SIZE - 1 - inc + LINE_SIZE - 1]] -= 1
+                inc += 1
+    return line
+
+
+def play_game(plus_player_func, minus_player_func, board_state=None):
+
+    board_state = board_state or emptyboard()
     player_turn = 1
 
     while True:
@@ -138,6 +202,11 @@ def play_game(plus_player_func, minus_player_func):
             return winner
         player_turn = -player_turn
 
+def state_key(state):
+    c = possible(state)
+    key = (c[(1, 0, 4)], c[(2, 0, 3)], c[(3, 0, 2)], c[(4, 0, 1)], c[(5, 0, 0)], c[(0, 1, 4)], c[(0, 2, 3)],
+           c[(0, 3, 2)], c[(0, 4, 1)], c[(0, 5, 0)])
+    return key
 
 class Agent(object):
     def __init__(self, player, lossval = 0):
@@ -163,6 +232,7 @@ class Agent(object):
         for i, j in itertools.product(range(BOARD_SIZE), range(BOARD_SIZE)):
             if state[i][j] == 0:
                 yield (i, j)
+
 
     def state_formula(self, state):
         c = self.possible(state)
@@ -198,7 +268,8 @@ class Agent(object):
         positions = sorted(positions, key=lambda tup: tup[0], reverse=True)
         #random_index = random.randrange(0, min(2,len(positions)))
         if len(positions) >= 3:
-            random_index = numpy.random.choice(numpy.arange(0, 3), p=[0.65, 0.25, 0.1])
+            # initially trained on p=[0.65, 0.25, 0.1] , p=[0.8, 0.15, 0.05]
+            random_index = numpy.random.choice(numpy.arange(0, 3), p=[0.8, 0.15, 0.05])
         else:
             random_index = random.randrange(0, min(3, len(positions)))
         return positions[random_index][1]
@@ -302,8 +373,13 @@ class Human(object):
 import numpy
 
 if __name__ == '__main__':
-    #count = set()
-    for episode in range(10):
+    for episode in range(30):
+        p = [0.6, 0.1, 0.3]
+        move = np.random.multinomial(1, p)
+        print episode, move
+    '''
+    count = set()
+    for episode in range(30):
         if bool(random.getrandbits(1)):
             board_state = emptyboard()
             side = 1
@@ -331,7 +407,7 @@ if __name__ == '__main__':
                 if winner != 0 and winner != 2:
                     break
                 side = -side
-            #count.add(tuple(np.array(board_state).ravel()))
+            count.add(tuple(np.array(board_state).ravel()))
             printboard(board_state)
         else:
             # print 'player goes first'
@@ -360,6 +436,9 @@ if __name__ == '__main__':
                 if winner != 0 and winner != 2:
                     break
                 side = -side
-            #count.add(tuple(np.array(board_state).ravel()))
+            count.add(tuple(np.array(board_state).ravel()))
             printboard(board_state)
-    #print len(count)
+        if episode%100 == 0:
+            print episode, len(count)
+    
+    '''

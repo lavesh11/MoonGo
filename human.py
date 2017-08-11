@@ -31,7 +31,8 @@ if __name__ == '__main__':
 
     with tf.Session() as session:
         session.run(tf.initialize_all_variables())
-        load_network(session, variables, 'MoonGo_supervised_cross.pickle')
+        # MoonGo_supervised_cross_prob MoonGo_reinforcement
+        load_network(session, variables, 'MoonGo_supervised_cross_prob.pickle')
         while 1:
             board_state = emptyboard()
             player_turn = 1
